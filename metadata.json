@@ -1,0 +1,6 @@
+{
+  "name": "CampusFlow",
+  "description": "Unified campus operations and workflow orchestration platform for BPUT, connecting student intent across FretBox, ERP, LMS, and departmental offices.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
