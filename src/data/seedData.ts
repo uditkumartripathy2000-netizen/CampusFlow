@@ -511,6 +511,37 @@ export const INITIAL_REQUESTS: RequestItem[] = [
     ]
   },
 
+  // 6b. Timetable & Academic Mentoring Query (Assigned to Faculty Dr. Pramod Dash)
+  {
+    id: 'REQ-1053',
+    title: 'High Voltage Engineering (EE-314) Tutorial & Remedial Slot Clash',
+    category: 'timetable',
+    department: 'Department of Electrical Engineering & LMS',
+    studentName: 'Biswajit Sahoo',
+    studentId: '2201289064',
+    studentEmail: 'biswajit.s@bput-campus.ac.in',
+    hostelRoom: 'Mahanadi Hall · Room A-204',
+    createdAt: '2026-10-01T08:30:00Z',
+    updatedAt: '2026-10-01T08:30:00Z',
+    status: 'submitted',
+    priority: 'medium',
+    slaHours: 24,
+    assignedStaff: 'Dr. Pramod Dash',
+    assignedRole: 'Associate Professor & Faculty Mentor',
+    description: 'Tuesday 3:30 PM High Voltage Engineering tutorial clashes with the Power Systems Simulation practical batch in Electrical Machines Lab.',
+    details: {
+      subject: 'High Voltage Engineering (EE-314)',
+      subjectCode: 'EE-314',
+      classDate: '2026-10-06',
+      queryType: 'Batch Tutorial Clash',
+    },
+    timeline: [
+      { id: 'TL-1053-1', timestamp: '2026-10-01T08:30:00Z', actor: 'Biswajit Sahoo', role: 'Student', action: 'Query Submitted' },
+      { id: 'TL-1053-2', timestamp: '2026-10-01T08:31:00Z', actor: 'CampusFlow Core Orchestrator', role: 'System', action: 'Routed to Faculty Advisor', note: 'Auto-assigned to Dr. Pramod Dash (EE Department Mentor)' }
+    ],
+    internalNotes: []
+  },
+
   // 7. Mess Feedback
   {
     id: 'REQ-1044',

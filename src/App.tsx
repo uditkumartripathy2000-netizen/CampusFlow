@@ -75,27 +75,24 @@ const CampusFlowApp: React.FC = () => {
       if (isAuthenticated) {
         if (path === '/student' || hash === '#/student') {
           if (role !== 'student' && role !== 'admin') {
-            setDeniedRouteInfo({ path: '/student', role });
+            setDeniedRouteInfo(prev => (prev?.path === '/student' && prev?.role === role ? prev : { path: '/student', role }));
           } else {
-            setDeniedRouteInfo(null);
-            if (activeTab === 'faculty_dashboard' || activeTab === 'admin_dashboard') {
-              setActiveTab('overview');
-            }
+            setDeniedRouteInfo(prev => prev ? null : null);
           }
         } else if (path === '/faculty' || hash === '#/faculty') {
           if (role !== 'faculty' && role !== 'admin' && role !== 'staff') {
-            setDeniedRouteInfo({ path: '/faculty', role });
+            setDeniedRouteInfo(prev => (prev?.path === '/faculty' && prev?.role === role ? prev : { path: '/faculty', role }));
           } else {
-            setDeniedRouteInfo(null);
-            setActiveTab('faculty_dashboard');
+            setDeniedRouteInfo(prev => prev ? null : null);
           }
         } else if (path === '/admin' || hash === '#/admin') {
           if (role !== 'admin' && role !== 'staff') {
-            setDeniedRouteInfo({ path: '/admin', role });
+            setDeniedRouteInfo(prev => (prev?.path === '/admin' && prev?.role === role ? prev : { path: '/admin', role }));
           } else {
-            setDeniedRouteInfo(null);
-            setActiveTab('admin_dashboard');
+            setDeniedRouteInfo(prev => prev ? null : null);
           }
+        } else {
+          setDeniedRouteInfo(prev => prev ? null : null);
         }
       }
     };
@@ -107,23 +104,29 @@ const CampusFlowApp: React.FC = () => {
       window.removeEventListener('popstate', handleUrlRoute);
       window.removeEventListener('hashchange', handleUrlRoute);
     };
-  }, [isAuthenticated, role, setActiveTab, setActiveVerificationCertId, activeTab]);
+  }, [isAuthenticated, role, setActiveTab, setActiveVerificationCertId]);
 
-  // Sync address bar URL with active role dashboard
+  // Sync address bar URL with active role dashboard cleanly
   useEffect(() => {
     if (!isAuthenticated) return;
     try {
-      if (activeTab === 'faculty_dashboard') {
-        window.history.replaceState({}, '', '/faculty');
-      } else if (activeTab === 'admin_dashboard' || activeTab === 'workflow_monitor' || activeTab === 'integrations' || activeTab === 'rollout') {
-        window.history.replaceState({}, '', '/admin');
-      } else if (role === 'student' && (activeTab === 'overview' || activeTab === 'requests' || activeTab === 'my_documents' || activeTab === 'gate_passes')) {
-        window.history.replaceState({}, '', '/student');
+      const currentPath = (window.location.pathname || '').toLowerCase();
+      if (currentPath.startsWith('/verify')) return;
+
+      let targetPath = '/student';
+      if (role === 'faculty') {
+        targetPath = '/faculty';
+      } else if (role === 'admin' || role === 'staff') {
+        targetPath = '/admin';
+      }
+
+      if (currentPath !== targetPath) {
+        window.history.replaceState({}, '', targetPath);
       }
     } catch (e) {
       // ignore
     }
-  }, [activeTab, role, isAuthenticated]);
+  }, [role, isAuthenticated]);
 
   const handleOpenWizard = (category?: RequestCategory, location?: { id: string; name: string }) => {
     setWizardCategory(category);
@@ -177,7 +180,7 @@ const CampusFlowApp: React.FC = () => {
       return allowed.includes(tab);
     }
     if (userRole === 'faculty') {
-      const allowed = ['faculty_dashboard', 'campus_map', 'my_campus', 'notices', 'settings', 'verification'];
+      const allowed = ['faculty_dashboard', 'campus_map', 'my_campus', 'requests', 'notices', 'settings', 'verification'];
       return allowed.includes(tab);
     }
     if (userRole === 'staff') {
@@ -192,9 +195,16 @@ const CampusFlowApp: React.FC = () => {
 
   const returnToAuthorizedTab = () => {
     setDeniedRouteInfo(null);
-    if (role === 'faculty') setActiveTab('faculty_dashboard');
-    else if (role === 'admin' || role === 'staff') setActiveTab('admin_dashboard');
-    else setActiveTab('overview');
+    if (role === 'faculty') {
+      setActiveTab('faculty_dashboard');
+      try { window.history.replaceState({}, '', '/faculty'); } catch (e) {}
+    } else if (role === 'admin' || role === 'staff') {
+      setActiveTab('admin_dashboard');
+      try { window.history.replaceState({}, '', '/admin'); } catch (e) {}
+    } else {
+      setActiveTab('overview');
+      try { window.history.replaceState({}, '', '/student'); } catch (e) {}
+    }
   };
 
   return (

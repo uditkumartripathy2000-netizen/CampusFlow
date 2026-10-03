@@ -48,7 +48,7 @@ export const Header: React.FC<HeaderProps> = ({ onMobileMenuToggle, isMobileMenu
       case 'overview': return 'Overview';
       case 'campus_map': return 'Campus Map';
       case 'my_campus': return 'Campus Info';
-      case 'requests': return role === 'student' ? 'My Requests' : 'Requests Queue';
+      case 'requests': return role === 'student' ? 'My Requests' : role === 'faculty' ? 'Assigned Tickets' : 'Requests Queue';
       case 'gate_passes': return 'Digital Gate Passes';
       case 'my_documents': return 'My Documents';
       case 'verification': return 'Verification Registry';

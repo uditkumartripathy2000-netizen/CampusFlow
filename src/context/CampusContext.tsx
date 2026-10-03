@@ -26,6 +26,7 @@ import {
 } from '../data/seedData.ts';
 import { AuthService, AuthSession } from '../services/authService.ts';
 import { SecurityGateAdapter } from '../services/integrationAdapters.ts';
+import { canUserPerformActionOnTicket } from '../utils/ticketRouting.ts';
 
 interface CampusContextType {
   // Session & Trusted Role
@@ -76,7 +77,7 @@ interface CampusContextType {
   // Actions
   createRequest: (data: Partial<RequestItem>) => RequestItem;
   updateRequestStatus: (id: string, newStatus: RequestStatus, note?: string) => void;
-  assignStaff: (id: string, staffName: string, roleName: string) => void;
+  assignStaff: (id: string, staffName: string, roleName: string, note?: string) => void;
   changePriority: (id: string, newPriority: RequestPriority, reason: string) => void;
   escalateRequest: (id: string, reason: string) => void;
   addInternalNote: (id: string, noteText: string) => void;
@@ -450,26 +451,49 @@ export const CampusProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     let targetDept = 'Central Student Services';
     let slaHours = 48;
+    let defaultAssignedRole = 'Administrative Officer';
+    let defaultAssignedStaff = 'Prof. S. K. Mohapatra';
 
     if (rawCategory === 'bonafide') {
       targetDept = 'Registrar Academic Section';
       slaHours = 48;
+      defaultAssignedRole = 'Academic Section';
+      defaultAssignedStaff = 'Mrs. Sunita Mohanty';
     } else if (rawCategory === 'maintenance') {
       targetDept = 'Hostel Maintenance (FretBox Sync)';
       slaHours = effectivePriority === 'urgent' ? 12 : effectivePriority === 'high' ? 24 : 48;
+      defaultAssignedRole = 'Works & Maintenance';
+      defaultAssignedStaff = 'Er. Ramesh Chandra Patra';
     } else if (rawCategory === 'leave_gatepass') {
       targetDept = 'Hostel Warden & Security Gate';
       slaHours = effectivePriority === 'urgent' ? 4 : 12;
+      defaultAssignedRole = 'Hostel Warden';
+      defaultAssignedStaff = 'Dr. Pramod Dash';
     } else if (rawCategory === 'timetable') {
       targetDept = 'Academic Section & LMS';
       slaHours = 24;
+      defaultAssignedRole = 'Academic Section';
+      const textToSearch = ((data.title || '') + ' ' + (data.description || '') + ' ' + (data.details?.subject || '')).toLowerCase();
+      if (textToSearch.includes('electrical') || textToSearch.includes('power') || textToSearch.includes('circuits')) {
+        defaultAssignedStaff = 'Dr. Pramod Dash';
+        defaultAssignedRole = 'Associate Professor & Faculty Mentor';
+      } else {
+        defaultAssignedStaff = 'Mrs. Sunita Mohanty';
+      }
     } else if (rawCategory === 'mess') {
       targetDept = 'Central Mess Committee';
       slaHours = effectivePriority === 'urgent' ? 12 : 48;
+      defaultAssignedRole = 'Catering Officer';
+      defaultAssignedStaff = 'Chef Debendra Jena';
     } else if (rawCategory === 'fee_dues') {
       targetDept = 'Finance & Accounts Office';
       slaHours = 72;
+      defaultAssignedRole = 'Accounts Officer';
+      defaultAssignedStaff = 'Mrs. Sunita Mohanty';
     }
+
+    const assignedStaff = data.assignedStaff || defaultAssignedStaff;
+    const assignedRole = data.assignedRole || defaultAssignedRole;
 
     const timelineEvents: RequestItem['timeline'] = [
       {
@@ -487,7 +511,7 @@ export const CampusProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         role: 'System',
         action: 'Intent Classified & Routed',
         system: targetDept.includes('FretBox') ? 'FretBox v2 API' : 'CampusFlow Service Bus',
-        note: `Auto-assigned SLA: ${slaHours} hours (Priority: ${effectivePriority.toUpperCase()})`
+        note: `Auto-routed to ${targetDept} (Assigned: ${assignedStaff} · ${assignedRole}). Auto-assigned SLA: ${slaHours} hours (Priority: ${effectivePriority.toUpperCase()})`
       }
     ];
 
@@ -534,6 +558,8 @@ export const CampusProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       flaggedForTriage: flaggedForTriage,
       triageNote: triageNote,
       slaHours: slaHours,
+      assignedStaff: assignedStaff,
+      assignedRole: assignedRole,
       description: data.description || '',
       details: data.details || {},
       timeline: timelineEvents,
@@ -546,6 +572,24 @@ export const CampusProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const updateRequestStatus = (id: string, newStatus: RequestStatus, note?: string) => {
+    const targetReq = requests.find(r => r.id === id);
+    if (!targetReq) return;
+
+    let actionType: 'in_progress' | 'approve' | 'reject' | 'resolve' | 'reopen' | 'close' | 'cancel' = 'in_progress';
+    if (newStatus === 'in_progress') actionType = 'in_progress';
+    else if (newStatus === 'approved') actionType = 'approve';
+    else if (newStatus === 'resolved') actionType = 'resolve';
+    else if (newStatus === 'reopened') actionType = 'reopen';
+    else if (newStatus === 'closed' && (note?.toLowerCase().includes('reject') || note?.toLowerCase().includes('decline'))) actionType = 'reject';
+    else if (newStatus === 'closed' && (note?.toLowerCase().includes('cancel'))) actionType = 'cancel';
+    else if (newStatus === 'closed') actionType = 'close';
+
+    const perm = canUserPerformActionOnTicket(targetReq, currentUser, actionType);
+    if (!perm.allowed) {
+      console.warn(`[CampusFlow Authorization Guard]: Action '${actionType}' denied for user ${currentUser.name} (${currentUser.role}): ${perm.reason}`);
+      return;
+    }
+
     const nowIso = new Date().toISOString();
     setRequests(prev => prev.map(req => {
       if (req.id !== id) return req;
@@ -587,7 +631,16 @@ export const CampusProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }));
   };
 
-  const assignStaff = (id: string, staffName: string, roleName: string) => {
+  const assignStaff = (id: string, staffName: string, roleName: string, note?: string) => {
+    const targetReq = requests.find(r => r.id === id);
+    if (!targetReq) return;
+
+    const perm = canUserPerformActionOnTicket(targetReq, currentUser, 'assign');
+    if (!perm.allowed) {
+      console.warn(`[CampusFlow Authorization Guard]: Assign staff denied for user ${currentUser.name} (${currentUser.role}): ${perm.reason}`);
+      return;
+    }
+
     const nowIso = new Date().toISOString();
     setRequests(prev => prev.map(req => {
       if (req.id !== id) return req;
@@ -605,7 +658,7 @@ export const CampusProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             actor: currentUser.name,
             role: currentUser.roleTitle,
             action: `Assigned to ${staffName} (${roleName})`,
-            note: 'Dispatched to department personnel for on-site inspection and task execution.'
+            note: note || 'Dispatched to department personnel for on-site inspection and task execution.'
           }
         ]
       };

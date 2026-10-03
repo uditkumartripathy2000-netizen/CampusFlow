@@ -18,6 +18,7 @@ import {
   GraduationCap
 } from 'lucide-react';
 import { useCampus } from '../../context/CampusContext.tsx';
+import { isTicketAssignedToFaculty } from '../../utils/ticketRouting.ts';
 
 interface SidebarProps {
   isMobileOpen: boolean;
@@ -43,6 +44,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, onCloseMobile })
     if (role === 'student') {
       const isMine = r.studentId === currentUser.studentId || r.studentEmail === currentUser.email;
       return isMine && r.status !== 'closed' && r.status !== 'resolved';
+    }
+    if (role === 'faculty') {
+      const isAssigned = isTicketAssignedToFaculty(r, currentUser);
+      return isAssigned && r.status !== 'closed' && r.status !== 'resolved';
     }
     return r.status !== 'closed' && r.status !== 'resolved';
   }).length;
@@ -89,10 +94,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, onCloseMobile })
     },
     {
       id: 'requests',
-      label: role === 'student' ? 'My Requests' : 'Requests Queue',
+      label: role === 'student' ? 'My Requests' : role === 'faculty' ? 'Assigned Tickets' : 'Requests Queue',
       icon: FileText,
       badge: openRequestsCount > 0 ? `${openRequestsCount}` : null,
-      visibleFor: ['student', 'admin', 'staff']
+      visibleFor: ['student', 'faculty', 'admin', 'staff']
     },
     {
       id: 'gate_passes',

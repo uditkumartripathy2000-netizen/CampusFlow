@@ -24,6 +24,7 @@ import {
 import { useCampus } from '../../context/CampusContext.tsx';
 import { RequestItem, RequestStatus, RequestPriority, RequestCategory } from '../../types/index.ts';
 import { STAFF_DIRECTORY } from '../../data/seedData.ts';
+import { isTicketAssignedToFaculty } from '../../utils/ticketRouting.ts';
 
 interface MyRequestsViewProps {
   onOpenWizard: () => void;
@@ -82,6 +83,20 @@ export const MyRequestsView: React.FC<MyRequestsViewProps> = ({
                         (currentUser.studentId && req.studentId === currentUser.studentId) ||
                         req.studentName.toLowerCase().includes('udit');
         if (!isOwner) return false;
+      }
+
+      // Faculty only sees tickets assigned to their responsibility / department
+      if (role === 'faculty') {
+        const isAssigned = isTicketAssignedToFaculty(req, currentUser);
+        if (!isAssigned) return false;
+      }
+
+      // Staff only sees maintenance or directly assigned tasks
+      if (role === 'staff') {
+        const isMaintenanceOrAssigned = 
+          req.category === 'maintenance' || 
+          (req.assignedStaff && req.assignedStaff.toLowerCase() === currentUser.name.toLowerCase());
+        if (!isMaintenanceOrAssigned) return false;
       }
 
       if (statusFilter !== 'all' && req.status !== statusFilter) return false;
